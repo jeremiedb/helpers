@@ -68,71 +68,143 @@ cat_estimates <- function(var, target, train_flag, bayes = F, weight = NULL) {
 }
 
 # cat_estimates: returns the mean target associated with given each cat level
-cat_bayes_estimates <- function(var, target, train_flag, bayes = T, weight = NULL) {
+# cat_bayes_estimates <- function(var, target, train_flag, bayes = T, weight = NULL) {
+#   
+#   if (is.null(weight)){
+#     data = data.frame(var = as.character(var), x = target, train_flag=train_flag, w = 1, stringsAsFactors = F)
+#   } else {
+#     data = data.frame(var = as.character(var), x = target, train_flag=train_flag, w = weight, stringsAsFactors = F)
+#   }
+# 
+#   if(bayes) {
+#     # VHM: variance of the hypothetical means
+#     data_cred_train <- data %>% 
+#       filter(train_flag) %>% 
+#       # mutate(w = w / sum(w)) %>% 
+#       dplyr::group_by(var) %>% 
+#       mutate(x_cat = sum(w*x),
+#              x2_cat = sum(w*x^2),
+#              w_cat = sum(w),
+#              mean_cat = x_cat/w_cat,
+#              PV_cat = x2_cat/w_cat - mean_cat^2,
+#              w_cat_adj = w_cat-w,
+#              mean_cat_adj = (x_cat - w*x)/(w_cat_adj),
+#              PV_cat_adj = (x2_cat - w*x^2)/(w_cat_adj) - mean_cat_adj^2) %>% 
+#       ungroup() %>% 
+#       mutate(w_tot =sum(w),
+#              mean_cat_tot = sum(w*mean_cat)/w_tot,
+#              mean_tot_adj = (sum(w*x) - x*w)/(w_tot-w),
+#              mean_cat2_tot = sum(w*mean_cat^2)/w_tot,
+#              VHM = mean_cat2_tot - mean_cat_tot^2,
+#              VHM_adj = (w_tot*mean_cat2_tot - w_cat*mean_cat^2 + w_cat_adj*mean_cat_adj^2)/(w_tot - w) - 
+#                ((w_tot*mean_cat_tot - w_cat*mean_cat + w_cat_adj*mean_cat_adj)/(w_tot - w))^2,
+#              EVPV = sum(w*PV_cat)/w_tot, 
+#              EVPV_adj = (w_tot*EVPV - w_cat*PV_cat + w_cat_adj * PV_cat_adj)/(w_tot-w)/w_cat_adj,
+#              Z = VHM_adj / (VHM_adj + EVPV_adj),
+#              x_smooth = Z * mean_cat_adj + (1- Z) * mean_tot_adj,
+#              x_smooth = ifelse(is.na(x_smooth), mean_tot_adj, x_smooth))
+#     
+# 
+#     
+#   } else {
+#     data_cred_train <- data %>% 
+#       filter(train_flag) %>% 
+#       dplyr::group_by(var) %>% 
+#       mutate(x_cat = sum(w*x),
+#              w_cat = sum(w),
+#              mean_cat = x_cat/w_cat,
+#              w_cat_adj = w_cat-w,
+#              x_smooth = (x_cat - w*x)/(w_cat_adj))
+#   }
+#   
+#   # attach metric on test dataset
+#   cat_smooth_key <- data_cred_train %>% 
+#     group_by(var) %>% summarise(x_smooth = mean(x_smooth)) %>% 
+#     as.data.table()
+#   setkeyv(cat_smooth_key, cols = "var")
+#   
+#   data_cred_test <- data %>% 
+#     filter(!train_flag) %>% 
+#     as.data.table()
+#   
+#   data_cred_test <- cat_smooth_key[data_cred_test]
+#   
+#   cat_smooth <- numeric(nrow(data))
+#   cat_smooth[train_flag] <- data_cred_train$x_smooth
+#   cat_smooth[!train_flag] <- data_cred_test$x_smooth
+#   cat_smooth[is.na(cat_smooth)] <- mean(cat_smooth, na.rm=T)
+#   
+#   return(cat_smooth)
+# }
+
+
+### Generates the indicators based on the CV
+# cat_estimates: returns the mean target associated with given each cat level
+cat_bayes_estimates <- function(var, target, CV_id, bayes = T, weight = NULL) {
   
   if (is.null(weight)){
-    data = data.frame(var = as.character(var), x = target, train_flag=train_flag, w = 1, stringsAsFactors = F)
+    data = data.frame(var = as.character(var), x = target, CV_id = CV_id, w = 1, stringsAsFactors = F)
   } else {
-    data = data.frame(var = as.character(var), x = target, train_flag=train_flag, w = weight, stringsAsFactors = F)
-  }
-
-  if(bayes) {
-    # VHM: variance of the hypothetical means
-    data_cred_train <- data %>% 
-      filter(train_flag) %>% 
-      # mutate(w = w / sum(w)) %>% 
-      dplyr::group_by(var) %>% 
-      mutate(x_cat = sum(w*x),
-             x2_cat = sum(w*x^2),
-             w_cat = sum(w),
-             mean_cat = x_cat/w_cat,
-             PV_cat = x2_cat/w_cat - mean_cat^2,
-             w_cat_adj = w_cat-w,
-             mean_cat_adj = (x_cat - w*x)/(w_cat_adj),
-             PV_cat_adj = (x2_cat - w*x^2)/(w_cat_adj) - mean_cat_adj^2) %>% 
-      ungroup() %>% 
-      mutate(w_tot =sum(w),
-             mean_cat_tot = sum(w*mean_cat)/w_tot,
-             mean_tot_adj = (sum(w*x) - x*w)/(w_tot-w),
-             mean_cat2_tot = sum(w*mean_cat^2)/w_tot,
-             VHM = mean_cat2_tot - mean_cat_tot^2,
-             VHM_adj = (w_tot*mean_cat2_tot - w_cat*mean_cat^2 + w_cat_adj*mean_cat_adj^2)/(w_tot - w) - 
-               ((w_tot*mean_cat_tot - w_cat*mean_cat + w_cat_adj*mean_cat_adj)/(w_tot - w))^2,
-             EVPV = sum(w*PV_cat)/w_tot, 
-             EVPV_adj = (w_tot*EVPV - w_cat*PV_cat + w_cat_adj * PV_cat_adj)/(w_tot-w)/w_cat_adj,
-             Z = VHM_adj / (VHM_adj + EVPV_adj),
-             x_smooth = Z * mean_cat_adj + (1- Z) * mean_tot_adj,
-             x_smooth = ifelse(is.na(x_smooth), mean_tot_adj, x_smooth))
-    
-
-    
-  } else {
-    data_cred_train <- data %>% 
-      filter(train_flag) %>% 
-      dplyr::group_by(var) %>% 
-      mutate(x_cat = sum(w*x),
-             w_cat = sum(w),
-             mean_cat = x_cat/w_cat,
-             w_cat_adj = w_cat-w,
-             x_smooth = (x_cat - w*x)/(w_cat_adj))
+    data = data.frame(var = as.character(var), x = target, CV_id = CV_id, w = weight, stringsAsFactors = F)
   }
   
-  # attach metric on test dataset
-  cat_smooth_key <- data_cred_train %>% 
-    group_by(var) %>% summarise(x_smooth = mean(x_smooth)) %>% 
-    as.data.table()
-  setkeyv(cat_smooth_key, cols = "var")
+  cat_smooth_tot <- numeric(length(CV_id))
   
-  data_cred_test <- data %>% 
-    filter(!train_flag) %>% 
-    as.data.table()
-  
-  data_cred_test <- cat_smooth_key[data_cred_test]
-  
-  cat_smooth <- numeric(nrow(data))
-  cat_smooth[train_flag] <- data_cred_train$x_smooth
-  cat_smooth[!train_flag] <- data_cred_test$x_smooth
-  cat_smooth[is.na(cat_smooth)] <- mean(cat_smooth, na.rm=T)
-  
-  return(cat_smooth)
+  for (CV in unique(CV_id)) {
+    gc()
+    
+    ### Set the IDs for train eval and test
+    train_id <- which(!CV_id %in% c(0, CV))
+    eval_id <- which(CV_id==CV)
+    
+    if(bayes) {
+      # VHM: variance of the hypothetical means
+      data_cred_train <- data[train_id, ] %>% 
+        dplyr::group_by(var) %>% 
+        mutate(x_cat = sum(w*x),
+               x2_cat = sum(w*x^2),
+               w_cat = sum(w),
+               mean_cat = x_cat/w_cat,
+               PV_cat = x2_cat/w_cat - mean_cat^2,
+               w_cat_adj = w_cat-w,
+               mean_cat_adj = (x_cat - w*x)/(w_cat_adj),
+               PV_cat_adj = (x2_cat - w*x^2)/(w_cat_adj) - mean_cat_adj^2) %>% 
+        ungroup() %>% 
+        mutate(w_tot =sum(w),
+               mean_cat_tot = sum(w*mean_cat)/w_tot,
+               mean_tot_adj = (sum(w*x) - x*w)/(w_tot-w),
+               mean_cat2_tot = sum(w*mean_cat^2)/w_tot,
+               VHM = mean_cat2_tot - mean_cat_tot^2,
+               VHM_adj = (w_tot*mean_cat2_tot - w_cat*mean_cat^2 + w_cat_adj*mean_cat_adj^2)/(w_tot - w) - 
+                 ((w_tot*mean_cat_tot - w_cat*mean_cat + w_cat_adj*mean_cat_adj)/(w_tot - w))^2,
+               EVPV = sum(w*PV_cat)/w_tot, 
+               EVPV_adj = (w_tot*EVPV - w_cat*PV_cat + w_cat_adj * PV_cat_adj)/(w_tot-w)/w_cat_adj,
+               Z = VHM_adj / (VHM_adj + EVPV_adj),
+               x_smooth = Z * mean_cat_adj + (1- Z) * mean_tot_adj,
+               x_smooth = ifelse(is.na(x_smooth), mean_tot_adj, x_smooth))
+      
+    } else {
+      data_cred_train <- data[train_id, ] %>% 
+        dplyr::group_by(var) %>% 
+        mutate(x_cat = sum(w*x),
+               w_cat = sum(w),
+               w_cat_adj = w_cat-w,
+               x_smooth = (x_cat - w*x)/(w_cat_adj))
+    }
+    
+    # attach metric on test dataset
+    cat_smooth_key <- data_cred_train %>% 
+      group_by(var) %>% summarise(x_smooth = mean(x_smooth)) %>% 
+      as.data.table()
+    setkeyv(cat_smooth_key, cols = "var")
+    
+    data_cred_test <- data[eval_id, ] %>% as.data.table()
+    
+    data_cred_test <- cat_smooth_key[data_cred_test]
+    cat_smooth <- data_cred_test$x_smooth
+    cat_smooth[is.na(cat_smooth)] <- mean(cat_smooth, na.rm=T)
+    
+    cat_smooth_tot[which(CV_id == CV)] <- cat_smooth
+  }
+  return(cat_smooth_tot)
 }
